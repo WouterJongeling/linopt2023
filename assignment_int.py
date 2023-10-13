@@ -64,7 +64,7 @@ def optimise(budget: int, relax: bool = False):
         quicksum(DISTANCE/speedlimitv(i,j) * (u[i,j]+v[i,j]) - DISTANCE*EXCEED/(speedlimitv(i,j)*(speedlimitv(i,j)+EXCEED)) * c[i,j] for i in range(numRows - 1) for j in range(numCols)), sense=GRB.MINIMIZE);
 
     model.optimize();
-    print(f'Optimal objective value: {model.objVal}\n');
+    #print(f'Optimal objective value: {model.objVal}\n');
     
     #printPath(x, y, u, v, b, c);
     path = [];
@@ -85,7 +85,7 @@ def optimise(budget: int, relax: bool = False):
             j-=1;
         elif i > 0 and v[i-1,j].x == 1:
             i-=1;
-    return [path, model.objVal, model.Runtime];
+    return [path, model.objVal, model.Runtime, model.NodeCount];
 
 def printPath(x, y, u, v, b, c):
     for t in x.values():
@@ -101,48 +101,59 @@ def printPath(x, y, u, v, b, c):
     for t in c.values():
         if t.x != 0: print(f'{t.varName} = {t.x}');
 
-    i=0; j=0;
-    while(i!=9 or j!=9):
-        if j < 9 and x[i,j].x == 1:
-            j+=1;
-            print('+x');
-        elif i < 9 and u[i,j].x == 1:
-            i+=1;
-            print('+y');
-        elif j > 0 and y[i,j-1].x == 1:
-            j-=1;
-            print('-x');
-        elif i > 0 and v[i-1,j].x == 1:
-            i-=1;
-            print('-y');
-        #print(f'({i},{j})');
+    # i=0; j=0;
+    # while(i!=9 or j!=9):
+    #     if j < 9 and x[i,j].x == 1:
+    #         j+=1;
+    #         print('+x');
+    #     elif i < 9 and u[i,j].x == 1:
+    #         i+=1;
+    #         print('+y');
+    #     elif j > 0 and y[i,j-1].x == 1:
+    #         j-=1;
+    #         print('-x');
+    #     elif i > 0 and v[i-1,j].x == 1:
+    #         i-=1;
+    #         print('-y');
+    #     #print(f'({i},{j})');
 
 ### Q1 ###
 result = optimise(0, False);
-print(result);
+print("Q1", result);
 
-### Q3 ###
-xaxis = range(0, 2850, 50);
+### Q2 ###
+budgets = range(0, 2850, 50);
 costs = [];
 times = [];
-for budget in xaxis:
-    result = optimise(budget);
-    #print(budget, result);
+nodes = [];
+for budget in budgets:
+    result = optimise(budget, False);
     costs.append(result[1]);
     times.append(result[2]);
-print(costs);
+    nodes.append(result[3]);
+
+### Q3 ###
 
 import matplotlib.pyplot as plt
+fig, axs = plt.subplots(3);
 
-#plt.plot(xaxis, costs);
-plt.plot(xaxis, times);
-plt.title('title name')
-plt.xlabel('budget')
-plt.ylabel('running time')
-plt.ylim(bottom=0);
-plt.xlim(left=0);
+axs[0].plot(budgets, costs);
+axs[0].set(xlabel='budget', ylabel='travel time');
+axs[0].set_ylim(bottom=0);
+axs[0].set_xlim(left=0);
+
+axs[1].plot(budgets, times);
+axs[1].set(xlabel='budget', ylabel='running time');
+axs[1].set_ylim(bottom=0);
+axs[1].set_xlim(left=0);
+
+axs[2].plot(budgets, nodes);
+axs[2].set(xlabel='budget', ylabel='nodes');
+axs[2].set_ylim(bottom=0);
+axs[2].set_xlim(left=0);
+
 plt.show();
 
 ### Q4 ###
 result = optimise(500, False);
-print(result);
+print("Q4", result);
