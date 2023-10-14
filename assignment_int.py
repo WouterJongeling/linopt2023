@@ -1,6 +1,8 @@
 import gurobipy as gp
 from gurobipy import Model, quicksum, GRB
 import pandas as pd
+import numpy as np
+import sys;
 
 data = pd.read_excel('data_mp_assignment_2wo20.ods');
 df = pd.DataFrame(data);
@@ -14,12 +16,16 @@ fine = {
 };
 EXCEED = 30;
 DISTANCE = 100;
-def speedlimith(i, j): 
-    return df.iat[10-i, j+1];
-def speedlimitv(i, j):
-    return df.iat[25-i, j+1];
+def speedlimith(i, j, alwaysBreak = False): 
+    return df.iat[10-i, j+1] + (30 if alwaysBreak else 0);
+def speedlimitv(i, j, alwaysBreak = False):
+    return df.iat[25-i, j+1] + (30 if alwaysBreak else 0);
 
 def optimise(budget: int, relax: bool = False):
+    alwaysBreak = False;
+    if budget < 0:
+        alwaysBreak = True;
+        budget = 0;
     model = Model('Road network');
     model.setParam('LogToConsole', 0);
     x = {}; y = {}; u={}; v={}; b = {}; c = {};
@@ -37,31 +43,30 @@ def optimise(budget: int, relax: bool = False):
                 c[i,j] = model.addVar(name=f'breakv({i},{j})', lb=0, ub=1, vtype=GRB.CONTINUOUS if relax else GRB.INTEGER);
                 model.addConstr(u[i,j]+v[i,j] >= c[i,j]);
             if i==0 and j==0:
-                model.addConstr(x[0,0]-y[0,0] + u[0,0]-v[0,0] == 1);
+                model.addConstr(x[0,0]-y[0,0] + u[0,0]-v[0,0] == 1); #Vertex (0,0) (bottom left)
             elif i==numRows-1 and j==numCols-1:
-                model.addConstr(-x[numRows-1,numCols-2]+y[numRows-1,numCols-2] + -u[numRows-2,numCols-1]+v[numRows-2,numCols-1] == -1);
+                model.addConstr(-x[numRows-1,numCols-2]+y[numRows-1,numCols-2] + -u[numRows-2,numCols-1]+v[numRows-2,numCols-1] == -1); #Vertex (9,9) (top right)
             elif i==0 and j==numCols-1:
-                model.addConstr(u[i,j]-v[i,j] - x[i,j-1]+y[i,j-1] == 0);
+                model.addConstr(u[i,j]-v[i,j] - x[i,j-1]+y[i,j-1] == 0); #Vertex (0,9) (bottom right)
             elif i==numRows-1 and j==0:
-                model.addConstr(x[i,j]-y[i,j] - u[i-1,j]+v[i-1,j] == 0);
+                model.addConstr(x[i,j]-y[i,j] - u[i-1,j]+v[i-1,j] == 0); #Vertex (9,0) (top left)
             elif i==0:
-                model.addConstr(x[i,j]-y[i,j] + u[i,j]-v[i,j] - x[i,j-1]+y[i,j-1] == 0);
+                model.addConstr(x[i,j]-y[i,j] + u[i,j]-v[i,j] - x[i,j-1]+y[i,j-1] == 0); #(bottom row)
             elif j==0:
-                model.addConstr(x[i,j]-y[i,j] + u[i,j]-v[i,j] - u[i-1,j]+v[i-1,j] == 0);
+                model.addConstr(x[i,j]-y[i,j] + u[i,j]-v[i,j] - u[i-1,j]+v[i-1,j] == 0); #(left column)
             elif i == numRows-1:
-                model.addConstr(x[i,j]-y[i,j] - u[i-1,j]+v[i-1,j] - x[i,j-1]+y[i,j-1] == 0);
+                model.addConstr(x[i,j]-y[i,j] - u[i-1,j]+v[i-1,j] - x[i,j-1]+y[i,j-1] == 0); #(top row)
             elif j == numCols-1:
-                model.addConstr(u[i,j]-v[i,j] - u[i-1,j]+v[i-1,j] - x[i,j-1]+y[i,j-1] == 0);
+                model.addConstr(u[i,j]-v[i,j] - u[i-1,j]+v[i-1,j] - x[i,j-1]+y[i,j-1] == 0); #(right column)
             else:
-                model.addConstr(x[i,j]-y[i,j] + u[i,j]-v[i,j] - u[i-1,j]+v[i-1,j] - x[i,j-1]+y[i,j-1] == 0);
+                model.addConstr(x[i,j]-y[i,j] + u[i,j]-v[i,j] - u[i-1,j]+v[i-1,j] - x[i,j-1]+y[i,j-1] == 0); #(interior)
     model.addConstr(
         quicksum(b[i,j]*fine[speedlimith(i,j)] for j in range(numCols - 1) for i in range(numRows)) + 
         quicksum(c[i,j]*fine[speedlimitv(i,j)] for i in range(numRows - 1) for j in range(numCols)) <= budget
     );
-
     model.setObjective(
-        quicksum(DISTANCE/speedlimith(i,j) * (x[i,j]+y[i,j]) - DISTANCE*EXCEED/(speedlimith(i,j)*(speedlimith(i,j)+EXCEED)) * b[i,j] for j in range(numCols - 1) for i in range(numRows)) +
-        quicksum(DISTANCE/speedlimitv(i,j) * (u[i,j]+v[i,j]) - DISTANCE*EXCEED/(speedlimitv(i,j)*(speedlimitv(i,j)+EXCEED)) * c[i,j] for i in range(numRows - 1) for j in range(numCols)), sense=GRB.MINIMIZE);
+        quicksum(DISTANCE/speedlimith(i,j, alwaysBreak) * (x[i,j]+y[i,j]) - DISTANCE*EXCEED/(speedlimith(i,j)*(speedlimith(i,j)+EXCEED)) * b[i,j] for j in range(numCols - 1) for i in range(numRows)) +
+        quicksum(DISTANCE/speedlimitv(i,j, alwaysBreak) * (u[i,j]+v[i,j]) - DISTANCE*EXCEED/(speedlimitv(i,j)*(speedlimitv(i,j)+EXCEED)) * c[i,j] for i in range(numRows - 1) for j in range(numCols)), sense=GRB.MINIMIZE);
 
     model.optimize();
     #print(f'Optimal objective value: {model.objVal}\n');
@@ -85,7 +90,20 @@ def optimise(budget: int, relax: bool = False):
             j-=1;
         elif i > 0 and v[i-1,j].x == 1:
             i-=1;
+        else:
+            path = [];
+            break;
+    if len(path) > 0:
+        path.append([9,9,'']);
     return [path, model.objVal, model.Runtime, model.NodeCount];
+
+import matplotlib.pyplot as plt;
+def plotPath(path):
+    data = np.asarray([[j,i] for [i,j,b] in path]);
+    plt.xlim(0,9);
+    plt.ylim(0,9);
+    plt.plot(*data.transpose(), linewidth='4');
+    plt.show();
 
 def printPath(x, y, u, v, b, c):
     for t in x.values():
@@ -101,25 +119,30 @@ def printPath(x, y, u, v, b, c):
     for t in c.values():
         if t.x != 0: print(f'{t.varName} = {t.x}');
 
-    # i=0; j=0;
-    # while(i!=9 or j!=9):
-    #     if j < 9 and x[i,j].x == 1:
-    #         j+=1;
-    #         print('+x');
-    #     elif i < 9 and u[i,j].x == 1:
-    #         i+=1;
-    #         print('+y');
-    #     elif j > 0 and y[i,j-1].x == 1:
-    #         j-=1;
-    #         print('-x');
-    #     elif i > 0 and v[i-1,j].x == 1:
-    #         i-=1;
-    #         print('-y');
-    #     #print(f'({i},{j})');
+    i=0; j=0;
+    while(i!=9 or j!=9):
+        if j < 9 and x[i,j].x == 1:
+            j+=1;
+            print('+x');
+        elif i < 9 and u[i,j].x == 1:
+            i+=1;
+            print('+y');
+        elif j > 0 and y[i,j-1].x == 1:
+            j-=1;
+            print('-x');
+        elif i > 0 and v[i-1,j].x == 1:
+            i-=1;
+            print('-y');
+        #print(f'({i},{j})');
 
 ### Q1 ###
-result = optimise(0, False);
+result = optimise(0, relax=False);
+resultB = optimise(-1, relax=False);
 print("Q1", result);
+print("Q1", resultB);
+plotPath(result[0]);
+plotPath(resultB[0]);
+sys.exit(0);
 
 ### Q2 ###
 budgets = range(0, 2850, 50);
@@ -127,7 +150,7 @@ costs = [];
 times = [];
 nodes = [];
 for budget in budgets:
-    result = optimise(budget, False);
+    result = optimise(budget, relax=False);
     costs.append(result[1]);
     times.append(result[2]);
     nodes.append(result[3]);
@@ -155,5 +178,5 @@ axs[2].set_xlim(left=0);
 plt.show();
 
 ### Q4 ###
-result = optimise(500, False);
+result = optimise(500, relax=False);
 print("Q4", result);
