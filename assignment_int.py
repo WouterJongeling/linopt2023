@@ -17,6 +17,7 @@ fines = {
 };
 EXCEED = 30;
 DISTANCE = 100;
+PRINT_BUDGET = 300;
 def speedlimith(i, j, alwaysBreak = False): 
     return df.iat[10-i, j+1] + (EXCEED if alwaysBreak else 0);
 def speedlimitv(i, j, alwaysBreak = False):
@@ -102,12 +103,57 @@ def optimise(budget: int, relax: bool = False):
         path.append([9,9,'']);
     return [path, model.objVal, model.Runtime, model.NodeCount];
 
-def plotPath(path, savePath = None):
+def findIndex(point, array):
+    index = 0
+    for item in array:
+        if (point == item).all():
+            return index
+        index+=1
+    return -1
+
+def plotPath(path, budget, savePath = None):
     plt.clf();
     data = np.asarray([[j,i] for [i,j,b] in path]);
+    breaks_pre = np.asarray([[i,j,b] for [i,j,b] in path if (b != '')])
+    breaks =  np.asarray([[j,i] for [i,j,b] in breaks_pre]).astype(int)
+    list_breaks = []
+
+    for br in breaks:
+        if br in data:          
+            br_index = findIndex(br, breaks)
+            data_index = findIndex(br, data)
+            if (br == [8,9]).all() or (br == [9,8]).all():
+                list_breaks.append(breaks[br_index])
+                list_breaks.append([9,9])
+            else:
+                list_breaks.append(breaks[br_index])
+                list_breaks.append(data[data_index+1]) 
+
+    break_pts_list = []
+    for i in range(0,len(list_breaks)-1,2):
+        temp_list = []
+        temp_list.append(list_breaks[i])
+        temp_list.append(list_breaks[i+1])
+        break_pts_list.append(temp_list)
+
+    breaks_pts = np.asarray(break_pts_list)  
+
     plt.xlim(0,9);
     plt.ylim(0,9);
     plt.plot(*data.transpose(), linewidth='4');
+    
+    for break_pts in breaks_pts:
+        plt.plot(*break_pts.transpose(), linewidth='4', color="red");
+        x = break_pts[0][0];
+        y = break_pts[0][1];
+        if (break_pts[1][0] == x+1 and break_pts[1][1] == y):
+            plt.text(x,y+0.3,speedlimith(y,x))
+        else:
+            plt.text(x+0.2,y+0.3,speedlimitv(y,x))
+
+    plt.title("Budget=" + str(budget))
+    
+    
     if savePath is not None:
         plt.savefig(savePath);
     else:
@@ -148,8 +194,8 @@ result = optimise(0, relax=False);
 resultB = optimise(-1, relax=False);
 print("Q1", result);
 print("Q1", resultB);
-plotPath(result[0], 'img/path_q1.png');
-plotPath(resultB[0], 'img/path_q1b.png');
+plotPath(result[0], 0, 'img/path_q1.png');
+plotPath(resultB[0], 'Unlimited', 'img/path_q1b.png');
 
 ### Q2 ###
 budgets = range(0, 2450, 50);
@@ -162,6 +208,10 @@ for budget in budgets:
     costs.append(result[1]);
     nodes.append(result[3]);
     sumTimes = result[2];
+
+    if budget == PRINT_BUDGET:
+        plotPath(result[0],budget,'img/path_budget_' + str(budget) + ".png")
+
     for run in range(0, NUMRUNS - 1):
         result = optimise(budget, relax=False);
         sumTimes += result[2];
