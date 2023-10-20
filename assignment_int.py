@@ -161,8 +161,8 @@ for budget in budgets:
     result = optimise(budget, relax=False);
     costs.append(result[1]);
     nodes.append(result[3]);
-    sumTimes = 0;
-    for run in range(0, NUMRUNS):
+    sumTimes = result[2];
+    for run in range(0, NUMRUNS - 1):
         result = optimise(budget, relax=False);
         sumTimes += result[2];
     times.append(sumTimes / NUMRUNS * 1000);
