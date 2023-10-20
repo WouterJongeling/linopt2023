@@ -3,12 +3,13 @@ from gurobipy import Model, quicksum, GRB
 import pandas as pd
 import numpy as np
 import sys;
+import matplotlib.pyplot as plt;
 
-data = pd.read_excel('data_mp_assignment_2wo20.ods');
+data = pd.read_excel(sys.argv[1] if len(sys.argv) > 1 else 'data_mp_assignment_2wo20.ods');
 df = pd.DataFrame(data);
 numRows = 10;
 numCols = 10;
-fine = {
+fines = {
     50: 250,
     90: 200,
     110: 150,
@@ -17,9 +18,13 @@ fine = {
 EXCEED = 30;
 DISTANCE = 100;
 def speedlimith(i, j, alwaysBreak = False): 
-    return df.iat[10-i, j+1] + (30 if alwaysBreak else 0);
+    return df.iat[10-i, j+1] + (EXCEED if alwaysBreak else 0);
 def speedlimitv(i, j, alwaysBreak = False):
-    return df.iat[25-i, j+1] + (30 if alwaysBreak else 0);
+    return df.iat[25-i, j+1] + (EXCEED if alwaysBreak else 0);
+def fine(speedlimit):
+    if(speedlimit in fines):
+        return fines[speedlimit];
+    return 0;
 
 def optimise(budget: int, relax: bool = False):
     alwaysBreak = False;
@@ -61,8 +66,8 @@ def optimise(budget: int, relax: bool = False):
             else:
                 model.addConstr(x[i,j]-y[i,j] + u[i,j]-v[i,j] - u[i-1,j]+v[i-1,j] - x[i,j-1]+y[i,j-1] == 0); #(interior)
     model.addConstr(
-        quicksum(b[i,j]*fine[speedlimith(i,j)] for j in range(numCols - 1) for i in range(numRows)) + 
-        quicksum(c[i,j]*fine[speedlimitv(i,j)] for i in range(numRows - 1) for j in range(numCols)) <= budget
+        quicksum(b[i,j]*fine(speedlimith(i,j)) for j in range(numCols - 1) for i in range(numRows)) + 
+        quicksum(c[i,j]*fine(speedlimitv(i,j)) for i in range(numRows - 1) for j in range(numCols)) <= budget
     );
     model.setObjective(
         quicksum(DISTANCE/speedlimith(i,j, alwaysBreak) * (x[i,j]+y[i,j]) - DISTANCE*EXCEED/(speedlimith(i,j)*(speedlimith(i,j)+EXCEED)) * b[i,j] for j in range(numCols - 1) for i in range(numRows)) +
@@ -97,13 +102,16 @@ def optimise(budget: int, relax: bool = False):
         path.append([9,9,'']);
     return [path, model.objVal, model.Runtime, model.NodeCount];
 
-import matplotlib.pyplot as plt;
-def plotPath(path):
+def plotPath(path, savePath = None):
+    plt.clf();
     data = np.asarray([[j,i] for [i,j,b] in path]);
     plt.xlim(0,9);
     plt.ylim(0,9);
     plt.plot(*data.transpose(), linewidth='4');
-    plt.show();
+    if savePath is not None:
+        plt.savefig(savePath);
+    else:
+        plt.show();
 
 def printPath(x, y, u, v, b, c):
     for t in x.values():
@@ -119,54 +127,56 @@ def printPath(x, y, u, v, b, c):
     for t in c.values():
         if t.x != 0: print(f'{t.varName} = {t.x}');
 
-    i=0; j=0;
-    while(i!=9 or j!=9):
-        if j < 9 and x[i,j].x == 1:
-            j+=1;
-            print('+x');
-        elif i < 9 and u[i,j].x == 1:
-            i+=1;
-            print('+y');
-        elif j > 0 and y[i,j-1].x == 1:
-            j-=1;
-            print('-x');
-        elif i > 0 and v[i-1,j].x == 1:
-            i-=1;
-            print('-y');
-        #print(f'({i},{j})');
+    # i=0; j=0;
+    # while(i!=9 or j!=9):
+    #     if j < 9 and x[i,j].x == 1:
+    #         j+=1;
+    #         print('+x');
+    #     elif i < 9 and u[i,j].x == 1:
+    #         i+=1;
+    #         print('+y');
+    #     elif j > 0 and y[i,j-1].x == 1:
+    #         j-=1;
+    #         print('-x');
+    #     elif i > 0 and v[i-1,j].x == 1:
+    #         i-=1;
+    #         print('-y');
+    #     #print(f'({i},{j})');
 
 ### Q1 ###
 result = optimise(0, relax=False);
 resultB = optimise(-1, relax=False);
 print("Q1", result);
 print("Q1", resultB);
-plotPath(result[0]);
-plotPath(resultB[0]);
-sys.exit(0);
+plotPath(result[0], 'img/path_q1.png');
+plotPath(resultB[0], 'img/path_q1b.png');
 
 ### Q2 ###
-budgets = range(0, 2850, 50);
+budgets = range(0, 2450, 50);
+NUMRUNS = 1;
 costs = [];
 times = [];
 nodes = [];
 for budget in budgets:
     result = optimise(budget, relax=False);
     costs.append(result[1]);
-    times.append(result[2]);
     nodes.append(result[3]);
+    sumTimes = 0;
+    for run in range(0, NUMRUNS):
+        result = optimise(budget, relax=False);
+        sumTimes += result[2];
+    times.append(sumTimes / NUMRUNS * 1000);
 
 ### Q3 ###
-
-import matplotlib.pyplot as plt
 fig, axs = plt.subplots(3);
 
 axs[0].plot(budgets, costs);
-axs[0].set(xlabel='budget', ylabel='travel time');
+axs[0].set(xlabel='budget', ylabel='travel time (h)');
 axs[0].set_ylim(bottom=0);
 axs[0].set_xlim(left=0);
 
-axs[1].plot(budgets, times);
-axs[1].set(xlabel='budget', ylabel='running time');
+axs[1].scatter(budgets, times);
+axs[1].set(xlabel='budget', ylabel='running time (ms)');
 axs[1].set_ylim(bottom=0);
 axs[1].set_xlim(left=0);
 
@@ -175,7 +185,8 @@ axs[2].set(xlabel='budget', ylabel='nodes');
 axs[2].set_ylim(bottom=0);
 axs[2].set_xlim(left=0);
 
-plt.show();
+plt.savefig('img/stats.png')
+sys.exit(0);
 
 ### Q4 ###
 result = optimise(500, relax=False);
