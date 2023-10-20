@@ -75,9 +75,6 @@ def optimise(budget: int, relax: bool = False):
         quicksum(DISTANCE/speedlimitv(i,j, alwaysBreak) * (u[i,j]+v[i,j]) - DISTANCE*EXCEED/(speedlimitv(i,j)*(speedlimitv(i,j)+EXCEED)) * c[i,j] for i in range(numRows - 1) for j in range(numCols)), sense=GRB.MINIMIZE);
 
     model.optimize();
-    #print(f'Optimal objective value: {model.objVal}\n');
-    
-    #printPath(x, y, u, v, b, c);
     path = [];
     i=0; j=0;
     while(i!=9 or j!=9):
@@ -159,7 +156,7 @@ def plotPath(path, budget, savePath = None):
     else:
         plt.show();
 
-def printPath(x, y, u, v, b, c):
+def printVars(x, y, u, v, b, c):
     for t in x.values():
         if t.x != 0: print(f'{t.varName} = {t.x}');
     for t in y.values():
@@ -173,27 +170,11 @@ def printPath(x, y, u, v, b, c):
     for t in c.values():
         if t.x != 0: print(f'{t.varName} = {t.x}');
 
-    # i=0; j=0;
-    # while(i!=9 or j!=9):
-    #     if j < 9 and x[i,j].x == 1:
-    #         j+=1;
-    #         print('+x');
-    #     elif i < 9 and u[i,j].x == 1:
-    #         i+=1;
-    #         print('+y');
-    #     elif j > 0 and y[i,j-1].x == 1:
-    #         j-=1;
-    #         print('-x');
-    #     elif i > 0 and v[i-1,j].x == 1:
-    #         i-=1;
-    #         print('-y');
-    #     #print(f'({i},{j})');
-
 ### Q1 ###
 result = optimise(0, relax=False);
 resultB = optimise(-1, relax=False);
 print("Q1", result);
-print("Q1", resultB);
+print("Q1B", resultB);
 plotPath(result[0], 0, 'img/path_q1.png');
 plotPath(resultB[0], 'Unlimited', 'img/path_q1b.png');
 
@@ -236,8 +217,8 @@ axs[2].set_ylim(bottom=0);
 axs[2].set_xlim(left=0);
 
 plt.savefig('img/stats.png')
-sys.exit(0);
 
 ### Q4 ###
-result = optimise(500, relax=False);
+result = optimise(350, relax=True);
+#Plotting won't work here, because of the fractional paths
 print("Q4", result);
